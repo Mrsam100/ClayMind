@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 
-import React from 'react';
-import ClayScene from './ClayScene';
+import React, { Suspense } from 'react';
 import { BRAND_NAME } from '../constants';
+
+// Lazy load to match the performance optimization from the CTO audit
+const ClayScene = React.lazy(() => import('./ClayScene'));
 
 interface LandingPageProps {
   onLoginClick: () => void;
@@ -15,8 +17,10 @@ interface LandingPageProps {
 const LandingPage: React.FC<LandingPageProps> = ({ onLoginClick }) => {
   return (
     <div className="relative min-h-screen bg-[#FFF8F0] overflow-x-hidden">
-      {/* 3D Scene Background - Only active here */}
-      <ClayScene />
+      {/* 3D Scene Background */}
+      <Suspense fallback={<div className="absolute inset-0 bg-[#FFF8F0]"></div>}>
+        <ClayScene />
+      </Suspense>
 
       {/* Navigation Header */}
       <nav className="relative z-10 flex justify-between items-center px-6 md:px-12 py-6 max-w-[1600px] mx-auto">

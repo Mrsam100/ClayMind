@@ -22,9 +22,8 @@ body {
   overflow-x: hidden;
 }
 
-/* --- New Design System: Modern Pop --- */
+/* --- Dashboard Style: Modern Pop --- */
 
-/* The Main Container for Cards */
 .pop-card {
   background: white;
   border: 1px solid #E5E5E5;
@@ -32,7 +31,6 @@ body {
   transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
   position: relative;
   overflow: hidden;
-  /* Hardening for Layout Stability */
   min-width: 0; 
   flex-shrink: 0;
 }
@@ -43,7 +41,6 @@ body {
   border-color: var(--color-primary);
 }
 
-/* Buttons */
 .pop-button {
   background: var(--color-text);
   color: white;
@@ -64,16 +61,6 @@ body {
   transform: scale(0.98);
 }
 
-.pop-button-secondary {
-  background: white;
-  color: var(--color-text);
-  border: 2px solid #F0F0F0;
-}
-.pop-button-secondary:hover {
-  border-color: var(--color-text);
-}
-
-/* Sidebar Specifics */
 .sidebar-link {
   display: flex;
   align-items: center;
@@ -92,12 +79,6 @@ body {
   background: var(--color-primary);
   color: white;
   box-shadow: 0 4px 12px rgba(255, 159, 28, 0.3);
-}
-
-/* Utilities */
-.text-convex {
-  font-variation-settings: 'wght' 800;
-  letter-spacing: -0.02em;
 }
 
 /* Scrollbar */

@@ -1,3 +1,4 @@
+
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -23,9 +24,11 @@ const Assistant: React.FC = () => {
   }, [messages, isOpen]);
 
   const handleSend = async () => {
-    if (!inputValue.trim()) return;
+    // SECURITY: Sanitize input
+    const sanitizedInput = inputValue.trim();
+    if (!sanitizedInput || sanitizedInput.length > 500) return; // Prevent huge payloads
 
-    const userMsg: ChatMessage = { role: 'user', text: inputValue, timestamp: Date.now() };
+    const userMsg: ChatMessage = { role: 'user', text: sanitizedInput, timestamp: Date.now() };
     setMessages(prev => [...prev, userMsg]);
     setInputValue('');
     setIsThinking(true);
@@ -103,6 +106,7 @@ const Assistant: React.FC = () => {
                 onKeyDown={handleKeyPress}
                 placeholder="Ask about the past..." 
                 className="flex-1 bg-white border border-[#D6D1C7] focus:border-[#2C2A26] px-4 py-3 text-sm outline-none transition-colors placeholder-[#A8A29E] text-[#2C2A26]"
+                maxLength={500}
               />
               <button 
                 onClick={handleSend}

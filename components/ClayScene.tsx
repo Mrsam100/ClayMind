@@ -1,3 +1,4 @@
+
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
@@ -8,6 +9,7 @@ import * as THREE from 'three';
 
 const ClayScene: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
+  const frameIdRef = useRef<number>(0);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -96,7 +98,7 @@ const ClayScene: React.FC = () => {
 
     // Animation Loop
     const animate = () => {
-      requestAnimationFrame(animate);
+      frameIdRef.current = requestAnimationFrame(animate);
 
       // Rotate shapes gently
       torus.rotation.x += 0.005;
@@ -128,18 +130,26 @@ const ClayScene: React.FC = () => {
     };
     window.addEventListener('resize', handleResize);
 
-    // Cleanup
+    // Cleanup - CRITICAL FOR PRODUCTION
     return () => {
+      cancelAnimationFrame(frameIdRef.current);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('resize', handleResize);
-      if (mountRef.current) {
+      
+      if (mountRef.current && renderer.domElement) {
         mountRef.current.removeChild(renderer.domElement);
       }
-      // Dispose geometries/materials to prevent leaks
+      
+      // Dispose resources to prevent WebGL context loss/memory leaks
       shapes.forEach(shape => {
           shape.geometry.dispose();
-          (shape.material as THREE.Material).dispose();
+          if (Array.isArray(shape.material)) {
+             shape.material.forEach(m => m.dispose());
+          } else {
+             (shape.material as THREE.Material).dispose();
+          }
       });
+      renderer.dispose();
     };
   }, []);
 

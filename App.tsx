@@ -4,25 +4,41 @@
  * SPDX-License-Identifier: Apache-2.0
 */
 
-import React, { useState, useEffect, useMemo } from 'react';
-import Navbar from './components/Navbar';
-import Hero from './components/Hero';
-import ProductGrid from './components/ProductGrid';
-import ProductDetail from './components/ProductDetail';
-import CartDrawer from './components/CartDrawer';
-import Exchange from './components/Exchange';
-import Learn from './components/Learn';
-import Community from './components/Community';
-import Earn from './components/Earn';
-import Wallet from './components/Wallet';
-import InfoPage from './components/InfoPage';
-import About from './components/About';
-import Footer from './components/Footer';
-import Mascot from './components/Mascot';
-import LandingPage from './components/LandingPage';
-import Login from './components/Login';
+import React, { useState, useEffect, useMemo, Suspense } from 'react';
+import { authService } from './services/authService';
+import ErrorBoundary from './components/ErrorBoundary';
+
+// Lazy Load Heavy Components for Performance/Scalability
+// The user shouldn't download the Dashboard code until they actually log in.
+const Navbar = React.lazy(() => import('./components/Navbar'));
+const Hero = React.lazy(() => import('./components/Hero'));
+const ProductGrid = React.lazy(() => import('./components/ProductGrid'));
+const ProductDetail = React.lazy(() => import('./components/ProductDetail'));
+const CartDrawer = React.lazy(() => import('./components/CartDrawer'));
+const Exchange = React.lazy(() => import('./components/Exchange'));
+const Learn = React.lazy(() => import('./components/Learn'));
+const Community = React.lazy(() => import('./components/Community'));
+const Earn = React.lazy(() => import('./components/Earn'));
+const Wallet = React.lazy(() => import('./components/Wallet'));
+const InfoPage = React.lazy(() => import('./components/InfoPage'));
+const About = React.lazy(() => import('./components/About'));
+const Footer = React.lazy(() => import('./components/Footer'));
+const Mascot = React.lazy(() => import('./components/Mascot'));
+
+// Landing Page & Login are needed immediately, but we can still lazy load them to prioritize the core bundle
+const LandingPage = React.lazy(() => import('./components/LandingPage'));
+const Login = React.lazy(() => import('./components/Login'));
+
 import { PAPERS } from './constants';
 import { Paper, ViewState } from './types';
+
+// Loading Spinner for Suspense Fallback
+const LoadingScreen = () => (
+  <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#FFF8F0]">
+    <div className="w-12 h-12 border-4 border-[#FF9F1C] border-t-transparent rounded-full animate-spin mb-4"></div>
+    <span className="text-[#1F1F1F] font-bold animate-pulse">Initializing ClayMind...</span>
+  </div>
+);
 
 // Toast Component
 const Toast: React.FC<{ message: string; onClose: () => void }> = ({ message, onClose }) => {
@@ -43,6 +59,7 @@ const App: React.FC = () => {
   // --- Auth State ---
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
 
   // --- App State ---
   const [viewState, setViewState] = useState<ViewState>({ type: 'home' });
@@ -50,16 +67,19 @@ const App: React.FC = () => {
   const [userUpvotes, setUserUpvotes] = useState<string[]>([]);
   const [readingList, setReadingList] = useState<Paper[]>([]);
   const [isReadingListOpen, setIsReadingListOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState('Market');
 
   // --- Initialization & Persistence ---
   useEffect(() => {
-    // Check session
-    const session = localStorage.getItem('claymind_session');
-    if (session === 'active') setIsLoggedIn(true);
+    // Check session via robust service
+    const session = authService.getSession();
+    if (session) {
+        setIsLoggedIn(true);
+    }
+    setIsAuthChecking(false);
 
+    // Load Data
     const storedUpvotesString = localStorage.getItem('userUpvotes');
     if (storedUpvotesString) {
       try { setUserUpvotes(JSON.parse(storedUpvotesString)); } catch (e) { setUserUpvotes([]); }
@@ -69,7 +89,6 @@ const App: React.FC = () => {
       try { setReadingList(JSON.parse(storedLibrary)); } catch (e) { setReadingList([]); }
     }
     setPapers(PAPERS);
-    setIsLoading(false);
   }, []);
 
   useEffect(() => { localStorage.setItem('cryptoWatchlist', JSON.stringify(readingList)); }, [readingList]);
@@ -78,12 +97,11 @@ const App: React.FC = () => {
   const handleLoginSuccess = () => {
     setIsLoggedIn(true);
     setShowLoginModal(false);
-    localStorage.setItem('claymind_session', 'active');
   };
 
   const handleLogout = () => {
+    authService.logout();
     setIsLoggedIn(false);
-    localStorage.removeItem('claymind_session');
     setViewState({ type: 'home' });
   };
 
@@ -135,91 +153,96 @@ const App: React.FC = () => {
     return [];
   }, [papers, viewState]);
 
-  if (isLoading) return <div className="h-screen w-screen flex items-center justify-center bg-[#FFF8F0] text-xl font-bold text-[#FF9F1C]">Loading ClayMind...</div>;
+  if (isAuthChecking) return <LoadingScreen />;
 
   // --- PUBLIC VIEW ---
   if (!isLoggedIn) {
     return (
-      <>
-        <LandingPage onLoginClick={() => setShowLoginModal(true)} />
-        {showLoginModal && <Login onClose={() => setShowLoginModal(false)} onLogin={handleLoginSuccess} />}
-      </>
+      <ErrorBoundary>
+        <Suspense fallback={<LoadingScreen />}>
+            <LandingPage onLoginClick={() => setShowLoginModal(true)} />
+            {showLoginModal && (
+                <Login onClose={() => setShowLoginModal(false)} onLogin={handleLoginSuccess} />
+            )}
+        </Suspense>
+      </ErrorBoundary>
     );
   }
 
   // --- PRIVATE DASHBOARD VIEW ---
   return (
-    <div className="flex h-screen bg-[#FFF8F0] overflow-hidden">
-      {/* 1. Sidebar Layout (Fixed Width on Desktop) */}
-      <Navbar 
-        onNavClick={handleNavClick} 
-        activeCategory={activeCategory}
-        cartCount={readingList.length}
-        onOpenCart={() => setIsReadingListOpen(true)}
-        onLogout={handleLogout}
-      />
+    <ErrorBoundary>
+        <div className="flex h-screen bg-[#FFF8F0] overflow-hidden">
+        <Suspense fallback={<LoadingScreen />}>
+            {/* 1. Sidebar Layout */}
+            <Navbar 
+                onNavClick={handleNavClick} 
+                activeCategory={activeCategory}
+                cartCount={readingList.length}
+                onOpenCart={() => setIsReadingListOpen(true)}
+                onLogout={handleLogout}
+            />
 
-      {/* 2. Main Content Area - Responsive Flex Growth */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden h-full relative p-4 md:p-8 scroll-smooth">
-         <div className="max-w-[1600px] mx-auto min-h-full pb-20">
-            
-            {/* Dynamic Content View */}
-            {viewState.type === 'paper' ? (
-                <ProductDetail 
-                    product={viewState.paper} 
-                    relatedPapers={relatedPapers}
-                    onBack={() => setViewState({ type: 'home' })}
-                    onToggleSave={handleToggleSave}
-                    isSaved={savedPaperIds.includes(viewState.paper.id)}
-                    onProductClick={handleProductClick}
-                />
-            ) : viewState.type === 'info' ? (
-                <InfoPage pageId={viewState.pageId} />
-            ) : viewState.type === 'about' ? (
-                <About />
-            ) : (
-                <>
-                    {/* Dashboard Routing */}
-                    {activeCategory === 'Market' && (
-                        <div className="space-y-8 animate-fade-in">
-                            <Hero />
-                            <ProductGrid 
-                                papers={papers} 
-                                onProductClick={handleProductClick} 
-                                onUpvote={handleUpvote}
-                                userUpvotes={userUpvotes}
-                                onPublisherClick={() => {}}
-                                onToggleSave={handleToggleSave}
-                                savedPaperIds={savedPaperIds}
-                                activeCategory={activeCategory}
-                                setActiveCategory={setActiveCategory}
-                            />
-                        </div>
+            {/* 2. Main Content Area */}
+            <main className="flex-1 overflow-y-auto overflow-x-hidden h-full relative p-4 md:p-8 scroll-smooth">
+                <div className="max-w-[1600px] mx-auto min-h-full pb-20">
+                    
+                    {viewState.type === 'paper' ? (
+                        <ProductDetail 
+                            product={viewState.paper} 
+                            relatedPapers={relatedPapers}
+                            onBack={() => setViewState({ type: 'home' })}
+                            onToggleSave={handleToggleSave}
+                            isSaved={savedPaperIds.includes(viewState.paper.id)}
+                            onProductClick={handleProductClick}
+                        />
+                    ) : viewState.type === 'info' ? (
+                        <InfoPage pageId={viewState.pageId} />
+                    ) : viewState.type === 'about' ? (
+                        <About />
+                    ) : (
+                        <>
+                            {activeCategory === 'Market' && (
+                                <div className="space-y-8 animate-fade-in">
+                                    <Hero />
+                                    <ProductGrid 
+                                        papers={papers} 
+                                        onProductClick={handleProductClick} 
+                                        onUpvote={handleUpvote}
+                                        userUpvotes={userUpvotes}
+                                        onPublisherClick={() => {}}
+                                        onToggleSave={handleToggleSave}
+                                        savedPaperIds={savedPaperIds}
+                                        activeCategory={activeCategory}
+                                        setActiveCategory={setActiveCategory}
+                                    />
+                                </div>
+                            )}
+                            {activeCategory === 'Exchange' && <Exchange />}
+                            {activeCategory === 'Earn' && <Earn />}
+                            {activeCategory === 'Wallet' && <Wallet />}
+                            {activeCategory === 'Learn' && <Learn />}
+                            {activeCategory === 'Community' && <Community />}
+                        </>
                     )}
-                    {activeCategory === 'Exchange' && <Exchange />}
-                    {activeCategory === 'Earn' && <Earn />}
-                    {activeCategory === 'Wallet' && <Wallet />}
-                    {activeCategory === 'Learn' && <Learn />}
-                    {activeCategory === 'Community' && <Community />}
-                </>
-            )}
 
-            <Footer onLinkClick={(e, id) => { e.preventDefault(); handleNavClick(id); }} />
-         </div>
-      </main>
+                    <Footer onLinkClick={(e, id) => { e.preventDefault(); handleNavClick(id); }} />
+                </div>
+            </main>
 
-      {/* Overlays */}
-      <CartDrawer 
-        isOpen={isReadingListOpen}
-        onClose={() => setIsReadingListOpen(false)}
-        items={readingList}
-        onRemoveItem={handleToggleSave} 
-        onItemClick={handleProductClick}
-      />
-      
-      {toastMessage && <Toast message={toastMessage} onClose={() => setToastMessage(null)} />}
-      <Mascot />
-    </div>
+            <CartDrawer 
+                isOpen={isReadingListOpen}
+                onClose={() => setIsReadingListOpen(false)}
+                items={readingList}
+                onRemoveItem={handleToggleSave} 
+                onItemClick={handleProductClick}
+            />
+            
+            {toastMessage && <Toast message={toastMessage} onClose={() => setToastMessage(null)} />}
+            <Mascot />
+        </Suspense>
+        </div>
+    </ErrorBoundary>
   );
 };
 
